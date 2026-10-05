@@ -119,7 +119,6 @@ dialog textarea{height:110px;resize:vertical}
   </div>
   <label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" type="search" placeholder="Buscar canal" aria-label="Buscar canal"></label>
   <button class="btn" id="gbtn">Guía</button>
-  <button class="btn main" id="add">+ Agregar canales</button>
 </header>
 <main>
   <section class="stage">
@@ -146,21 +145,6 @@ dialog textarea{height:110px;resize:vertical}
   </aside>
 </main>
 
-<dialog id="dlg">
-  <h2>Agregar canales</h2>
-  <label for="cn">Nombre del canal</label>
-  <input id="cn" placeholder="Mi canal">
-  <label for="cu">URL .m3u8</label>
-  <input id="cu" placeholder="https://servidor/stream.m3u8 o http://ip:puerto/play/id">
-  <label for="ce">URL original del canal (opcional, solo para leer la guía)</label>
-  <input id="ce" placeholder="http://138.59.227.20:8000/play/a083">
-  <label for="cm">O pega una lista M3U</label>
-  <textarea id="cm" placeholder="#EXTM3U&#10;#EXTINF:-1 group-title=&quot;Noticias&quot;,Canal&#10;https://..."></textarea>
-  <p class="hint">También puedes elegir un archivo .m3u. Los canales se guardan en este navegador.</p>
-  <input type="file" id="cf" accept=".m3u,.m3u8,text/plain">
-  <div class="row"><button class="btn" id="cx">Cancelar</button><button class="btn" id="cr">Quitar los míos</button><button class="btn main" id="ok">Agregar</button></div>
-</dialog>
-
 <dialog id="gdlg">
   <h2>Guía de programación</h2>
   <div class="gtools">
@@ -177,7 +161,7 @@ dialog textarea{height:110px;resize:vertical}
 <script src="firebase-config.js"></script>
 <script>
 // ---- Canales de respaldo (se usan solo si Firebase no está configurado); los reales vienen de Firestore ----
-// ---- Canales de prueba (reemplázalos por los tuyos en CHANNELS o desde "Agregar canales") ----
+// ---- Canales de prueba ----
 let CHANNELS=[
  {id:"bbb",n:"Big Buck Bunny",c:"Cine",u:"https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"},
  {id:"sintel",n:"Sintel",c:"Cine",u:"https://bitdash-a.akamaihd.net/content/sintel/hls/playlist.m3u8"},
@@ -190,15 +174,17 @@ let CHANNELS=[
 ];
 const $=id=>document.getElementById(id), dlog=[];
 // ---- Canales desde Firebase (Firestore: config/channels) ----
+let remoteOk=false;
 async function loadRemote(){
   if(!window.FB||!FB.apiKey||FB.apiKey.startsWith("PEGA"))return;
   try{
     const V="https://www.gstatic.com/firebasejs/10.12.2/";
     const [{initializeApp},{getFirestore,doc,getDoc}]=await Promise.all([import(V+"firebase-app.js"),import(V+"firebase-firestore.js")]);
     const s=await getDoc(doc(getFirestore(initializeApp(FB)),"config","channels"));
+    remoteOk=true;
     if(s.exists()&&Array.isArray(s.data().list)){CHANNELS=s.data().list;try{localStorage.setItem("op_cache",JSON.stringify(CHANNELS))}catch{}}
     else CHANNELS=[];
-  }catch(e){try{const c=JSON.parse(localStorage.getItem("op_cache"));if(c)CHANNELS=c}catch{}}
+  }catch(e){try{const c=JSON.parse(localStorage.getItem("op_cache"));if(c){CHANNELS=c;remoteOk=true}}catch{}}
 }
 
 // Inicialización de Plyr
@@ -210,7 +196,7 @@ const player = new Plyr('#v', {
 const v = $("v");
 
 const store={get(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}},set(k,x){try{localStorage.setItem(k,JSON.stringify(x))}catch{}}};
-let mine=store.get("op_mine",[]), favs=store.get("op_favs",[]), cat="Todos", cur=-1, hls=null, filtered=[];
+const mine=[]; let favs=store.get("op_favs",[]), cat="Todos", cur=-1, hls=null, filtered=[];
 const all=()=>CHANNELS.concat(mine);
 const hue=s=>{let h=0;for(const ch of s)h=(h*31+ch.charCodeAt(0))%360;return h};
 const cats=()=>["Todos","Favoritos",...new Set(all().map(c=>c.c))];
@@ -251,7 +237,7 @@ function destroy(){if(hls){hls.destroy();hls=null}if(mp){try{mp.destroy()}catch{
 
 function play(i){
   const list=all(); if(!list.length)return; cur=(i+list.length)%list.length; const c=list[cur];
-  destroy(); $("title").textContent=c.n;chanInfo(c); $("cat").textContent=c.c; $("live").hidden=!c.live; document.title=c.n+" · O-PLUS TV";
+  destroy(); $("title").textContent=c.n;chanInfo(c);loadXml(c.e); $("cat").textContent=c.c; $("live").hidden=!c.live; document.title=c.n+" · O-PLUS TV";
   store.set("op_last",c.u);nowBox(); overlay(true,"Cargando señal"); drawList();
   const fail=m=>overlay(true,"No se pudo reproducir",m||"La señal no responde o el servidor no permite reproducirla desde esta página. Prueba con otro canal.");
   const tok=++playTok;go(c,tok,fail);
@@ -315,6 +301,20 @@ function parseXMLTV(text){
   });
   Object.keys(fresh).forEach(k=>{epg[k]=fresh[k].sort((a,b)=>a.s-b.s)});
   return{n,c:Object.keys(fresh).length};
+}
+const isXml=u=>/\.xml(\.gz)?(\?|#|$)/i.test(u||"");
+const eitUrl=c=>c.e&&!isXml(c.e)?c.e:"";
+const xmlDone=new Set();
+async function fetchXml(u){
+  const gz=/\.gz(\?|#|$)/i.test(u);
+  for(const t of [u,"https://corsproxy.io/?url="+encodeURIComponent(u),"https://api.allorigins.win/raw?url="+encodeURIComponent(u)]){
+    try{const r=await fetch(t);if(r.ok)return await readText(await r.blob(),gz)}catch{}
+  }
+  throw new Error("No se pudo descargar la guía");
+}
+function loadXml(u){
+  if(!isXml(u)||xmlDone.has(u))return;xmlDone.add(u);
+  fetchXml(u).then(t=>afterEpg(parseXMLTV(t),"Guía cargada")).catch(e=>{xmlDone.delete(u);gStatus(e.message+": "+u)});
 }
 const progs=c=>epg[norm(c.id)]||epg[alias[norm(c.n)]]||epg[norm(c.n)]||null;
 function nowNext(c){
@@ -468,7 +468,7 @@ async function startTs(c,k,tok,fail,tries=0){
   m.on(mpegts.Events.ERROR,(t,d,i)=>{
     if(seen||tok!==playTok||mp!==m)return;seen=true;
     D("Error "+t+" · "+d+(i&&i.msg?" · "+i.msg:"")+(v.error?" · video.error "+v.error.code+(v.error.message?" "+v.error.message:""):""));
-    if(v.error&&v.error.code===3&&!c.e){
+    if(v.error&&v.error.code===3&&!eitUrl(c)){
       return fail(DECMSG);
     }
     if(tries<3){
@@ -527,7 +527,7 @@ async function readEit(c,tok){
     }
   };
   try{
-    const rd=(await fetch(c.e||c.u,{signal:ctl.signal})).body.getReader();
+    const rd=(await fetch(eitUrl(c)||c.u,{signal:ctl.signal})).body.getReader();
     for(;;){
       const{value,done:fin}=await rd.read();if(fin)break;
       const b=new Uint8Array(rest.length+value.length);b.set(rest);b.set(value,rest.length);let o=0;
@@ -546,33 +546,9 @@ async function readEit(c,tok){
   clearTimeout(to);applyEit(c,out,tok);
 }
 
-// ---- Agregar canales / importar M3U ----
-function parseM3U(t){
-  const out=[];let meta=null;tvgUrl="";
-  for(const raw of t.split(/\r?\n/)){const l=raw.trim();
-    if(l.startsWith("#EXTM3U")){const m=/(?:url-tvg|x-tvg-url)="([^"]*)"/.exec(l);if(m)tvgUrl=m[1].split(",")[0].trim()}
-    else if(l.startsWith("#EXTINF")){const g=/group-title="([^"]*)"/.exec(l),d=/tvg-id="([^"]*)"/.exec(l);meta={id:d&&d[1]||undefined,n:l.slice(l.lastIndexOf(",")+1).trim()||"Canal",c:(g&&g[1])||"Mis canales"}}
-    else if(/^https?:\/\//i.test(l)){out.push({id:meta?meta.id:undefined,n:meta?meta.n:"Canal "+(out.length+1),c:meta?meta.c:"Mis canales",u:l,live:1});meta=null}}
-  return out;
-}
-$("add").onclick=()=>$("dlg").showModal();
-$("cx").onclick=()=>$("dlg").close();
-$("cf").onchange=e=>{const f=e.target.files[0];if(f)f.text().then(t=>{$("cm").value=t})};
-$("cr").onclick=()=>{mine=[];store.set("op_mine",mine);cat="Todos";drawChips();drawList();$("dlg").close()};
-$("ok").onclick=()=>{
-  let add=parseM3U($("cm").value);
-  const u=$("cu").value.trim();
-  if(/^https?:\/\//i.test(u))add.push({n:$("cn").value.trim()||"Mi canal",c:"Mis canales",u,live:1,e:$("ce").value.trim()||undefined});
-  if(!add.length){$("cu").focus();return}
-  const have=new Set(all().map(c=>c.u));add=add.filter(c=>!have.has(c.u));
-  mine=mine.concat(add);store.set("op_mine",mine);
-  ["cn","cu","ce","cm"].forEach(id=>$(id).value="");$("dlg").close();drawChips();drawList();
-  if(tvgUrl){loadEpgUrl(tvgUrl);tvgUrl=""}
-  if(add.length)play(all().indexOf(add[0]));
-};
-
 loadRemote().then(()=>{drawChips();drawList();
-loadDemo();{const eu=store.get("op_epgurl","");if(eu){$("eu").value=eu;loadEpgUrl(eu)}}
+if(!remoteOk)loadDemo();{const eu=store.get("op_epgurl","");if(eu){$("eu").value=eu;loadEpgUrl(eu)}}
+all().forEach(c=>loadXml(c.e));setInterval(()=>{xmlDone.clear();all().forEach(c=>loadXml(c.e))},3*3600000);
 const last=store.get("op_last",null), li=all().findIndex(c=>c.u===last);
 play(li>=0?li:0);
 });
