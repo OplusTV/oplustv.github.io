@@ -339,7 +339,7 @@ function parseXMLTV(text){
 }
 const isXml=u=>/\.xml(\.gz)?(\?|#|$)/i.test(u||"");
 const eitUrl=c=>c.e&&!isXml(c.e)?c.e:"";
-const xmlDone=new Set();
+const xmlDone=new Set(),xmlOk=new Set(),xmlErr={};
 async function fetchXml(u){
   const gz=/\.gz(\?|#|$)/i.test(u);
   for(const t of [u,"https://corsproxy.io/?url="+encodeURIComponent(u),"https://api.allorigins.win/raw?url="+encodeURIComponent(u)]){
@@ -349,7 +349,24 @@ async function fetchXml(u){
 }
 function loadXml(u){
   if(!isXml(u)||xmlDone.has(u))return;xmlDone.add(u);
-  fetchXml(u).then(t=>afterEpg(parseXMLTV(t),"Guía cargada")).catch(e=>{xmlDone.delete(u);gStatus(e.message+": "+u)});
+  fetchXml(u).then(t=>{const r=parseXMLTV(t);xmlOk.add(u);delete xmlErr[u];afterEpg(r,"Guía cargada")})
+    .catch(e=>{xmlDone.delete(u);xmlErr[u]=e.message==="No se pudo descargar la guía"?"No se pudo descargar la guía: el servidor no permite CORS y los servicios intermedios también fallaron.":"La guía no es un XMLTV válido.";gStatus(e.message+": "+u);nowBox()});
+}
+// Guía que se repite cada día: el .xml trae siempre el mismo día, así que se desplaza a hoy (y a los próximos días)
+function rollDaily(c){
+  const a=progs(c);if(!a||!a.length||a.rolled)return;
+  const D=864e5,k0=Math.floor((Date.now()-a[0].s)/D),out=[];
+  for(let k=k0-1;k<=k0+2;k++)a.forEach(p=>out.push({...p,s:p.s+k*D,e:p.e+k*D}));
+  out.sort((x,y)=>x.s-y.s);out.rolled=true;
+  const key=Object.keys(epg).find(x=>epg[x]===a);if(key)epg[key]=out;
+}
+function guideMsg(c){
+  if(!isXml(c.e))return "";
+  if(xmlErr[c.e])return xmlErr[c.e];
+  if(!xmlOk.has(c.e))return "Cargando la guía…";
+  const a=progs(c);
+  if(!a)return "La guía cargó pero no trae este canal: el ID de la guía debe ser igual al id del canal dentro del .xml.";
+  return "La guía está desactualizada (su último programa termina el "+new Date(a[a.length-1].e).toLocaleDateString()+"). Si el archivo repite siempre el mismo día, activa «Guía repetida cada día» en el panel.";
 }
 const progs=c=>epg[norm(c.id)]||epg[alias[norm(c.n)]]||epg[norm(c.n)]||null;
 function nowNext(c){
@@ -367,7 +384,7 @@ function updProgs(){document.querySelectorAll("#list .nm").forEach(t=>{const c=a
 function nowBox(){
   const b=$("nowbox"),c=all()[cur];if(!c)return;
   const[p,nx]=nowNext(c);
-  if(!p&&!nx){b.hidden=true;return}
+  if(!p&&!nx){const m=guideMsg(c);b.hidden=!m;b.textContent="";if(m)b.append(mk("div","m",m));return}
   b.hidden=false;b.textContent="";
   if(p){
     b.append(mk("div","t","Ahora: "+p.t),mk("div","m",hm(p.s)+" – "+hm(p.e)));
@@ -401,7 +418,7 @@ async function readText(blob,gz){
   return blob.text();
 }
 const gStatus=m=>{$("gs").textContent=m};
-function afterEpg(r,label){gStatus(`${label}: ${r.n} programas en ${r.c} canales.`);drawList();nowBox();if($("gdlg").open)renderGuide()}
+function afterEpg(r,label){all().filter(c=>c.loop).forEach(rollDaily);gStatus(`${label}: ${r.n} programas en ${r.c} canales.`);drawList();nowBox();if($("gdlg").open)renderGuide()}
 function loadDemo(){afterEpg(parseXMLTV(demoXMLTV()),"Guía de prueba")}
 async function loadEpgUrl(u){
   gStatus("Descargando guía…");

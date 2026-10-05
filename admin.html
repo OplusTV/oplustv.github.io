@@ -28,12 +28,12 @@ header h1{font-size:18px;margin-right:auto}header small{color:var(--mut)}
 #msg{min-height:24px;margin-bottom:10px}
 .row{display:grid;grid-template-columns:34px 1.2fr 1fr 2.2fr auto;gap:8px 10px;align-items:end;margin-bottom:10px}
 .row label{font-size:12px;color:var(--mut);display:block}.row .n{color:var(--mut);padding-bottom:10px;text-align:right}
-.row .more{grid-column:2/-1;display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end}
+.row .more.k{grid-template-columns:auto auto 1fr}.row .more{grid-column:2/-1;display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end}
 .act{display:flex;gap:4px;align-items:center}.act .btn{padding:6px 10px}.live{display:flex;gap:6px;align-items:center;padding-bottom:8px;white-space:nowrap}.live input{width:auto}
 details{margin-bottom:14px}summary{cursor:pointer;color:var(--cyan)}textarea{width:100%;height:110px;margin:8px 0;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 12px;color:var(--txt)}
 .row .more.l{grid-template-columns:44px 1fr}.row .more.f{grid-template-columns:1fr 1fr 1fr}.row .more.t{grid-template-columns:1fr}
 .row textarea{height:70px;margin:0;resize:vertical}.thumb{width:44px;height:44px;border-radius:10px;object-fit:contain;background:rgba(255,255,255,.08)}
-@media(max-width:800px){.row .more.f{grid-template-columns:1fr}.row{grid-template-columns:1fr}.row .more{grid-column:1;grid-template-columns:1fr}.row .n{text-align:left;padding:0}}
+@media(max-width:800px){.row .more.f,.row .more.k{grid-template-columns:1fr}.row{grid-template-columns:1fr}.row .more{grid-column:1;grid-template-columns:1fr}.row .n{text-align:left;padding:0}}
 </style></head><body>
 <form id="login" class="card">
   <h1>Panel de administración</h1>
@@ -75,6 +75,29 @@ function tfld(label,key,i,ph){
   const l=document.createElement("label"),x=document.createElement("textarea");l.append(label);x.value=ch[i][key]||"";x.placeholder=ph||"";
   x.oninput=()=>{ch[i][key]=x.value;mark()};l.append(x);return l;
 }
+const nz=s=>(s||"").toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"");
+const xt=s=>{const m=/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)(\d\d)?\s*([+-]\d{4})?/.exec((s||"").trim());if(!m)return NaN;let t=Date.UTC(+m[1],m[2]-1,+m[3],+m[4],+m[5],+(m[6]||0));if(m[7]){const o=parseInt(m[7].slice(1,3))*60+parseInt(m[7].slice(3));t-=(m[7][0]==="-"?-1:1)*o*60000}return t};
+async function probar(c){
+  const u=(c.e||"").trim();
+  if(!/^https?:\/\/.+\.xml(\.gz)?(\?|#|$)/i.test(u))return alert("Primero escribe en el campo de la guía la URL del epg.xml (debe terminar en .xml o .xml.gz).");
+  const gz=/\.gz(\?|#|$)/i.test(u);let txt=null,via="";
+  for(const [t,n] of [[u,"directo"],["https://corsproxy.io/?url="+encodeURIComponent(u),"corsproxy.io"],["https://api.allorigins.win/raw?url="+encodeURIComponent(u),"allorigins"]]){
+    try{const r=await fetch(t);if(!r.ok)continue;const b=await r.blob();txt=gz&&window.DecompressionStream?await new Response(b.stream().pipeThrough(new DecompressionStream("gzip"))).text():await b.text();via=n;break}catch{}
+  }
+  if(!txt)return alert("No se pudo descargar la guía desde el navegador: el servidor no permite CORS y los servicios intermedios también fallaron.");
+  const d=new DOMParser().parseFromString(txt,"text/xml");
+  if(d.querySelector("parsererror")||!d.querySelector("tv"))return alert("Se descargó, pero no es un XMLTV válido.");
+  const ids=[...d.querySelectorAll("channel")].map(x=>x.getAttribute("id")),id=nz(c.id||c.n);
+  const ps=[...d.querySelectorAll("programme")].filter(p=>nz(p.getAttribute("channel"))===id).map(p=>({s:xt(p.getAttribute("start")),e:xt(p.getAttribute("stop")),t:p.querySelector("title")?.textContent.trim()})).filter(p=>!isNaN(p.s)&&!isNaN(p.e)).sort((a,b)=>a.s-b.s);
+  const f=t=>new Date(t).toLocaleString(),L=["Descarga: "+via+(via!=="directo"?" (el servidor no permite CORS directo)":""),"Canales en el archivo: "+ids.slice(0,8).join(", ")+(ids.length>8?"…":"")];
+  if(!ps.length)return alert(L.concat(["","PROBLEMA: no hay programas para el ID «"+(c.id||c.n)+"». Pon en «ID de la guía» uno de los canales de arriba."]).join("\n"));
+  const now=Date.now(),cur=ps.find(p=>now>=p.s&&now<p.e),last=ps[ps.length-1].e;
+  L.push("Programas de este canal: "+ps.length,"Desde "+f(ps[0].s)+" hasta "+f(last),"");
+  if(cur)L.push("OK: ahora está «"+cur.t+"».");
+  else if(last<now)L.push("La guía está desactualizada. "+(c.loop?"Con «Guía repetida cada día» activado, la página la desplaza a hoy.":"Si el archivo repite siempre el mismo día, activa «Guía repetida cada día»."));
+  else L.push("La guía no tiene un programa para este momento (hay un hueco).");
+  alert(L.join("\n"));
+}
 function btn(t,fn,title){const b=document.createElement("button");b.className="btn";b.type="button";b.textContent=t;b.title=title||"";b.onclick=fn;return b}
 function render(){
   const q=$("flt").value.trim().toLowerCase(),box=$("rows");box.textContent="";$("cnt").textContent=ch.length+" canales";
@@ -88,11 +111,14 @@ function render(){
     a.append(btn("↑",mv(-1),"Subir"),btn("↓",mv(1),"Bajar"),btn("⧉",()=>{ch.splice(i+1,0,{...c,n:(c.n||"")+" (copia)"});mark();render()},"Duplicar"),btn("✕",()=>{if(confirm("¿Borrar «"+(c.n||"sin nombre")+"»?")){ch.splice(i,1);mark();render()}},"Borrar"));
     m.append(fld("Guía: URL del epg.xml (XMLTV), o del stream .ts para leer su guía integrada","e",i,"https://.../epg.xml"),fld("ID de la guía (tvg-id, opcional)","id",i,""),lv);
     r.append(n,fld("Nombre","n",i,"Mi canal"),fld("Categoría","c",i,"Noticias","cats"),fld("URL del canal (.m3u8 o http://ip:puerto/play/id)","u",i,"https://..."),a,document.createElement("span"),m);
-    const mk=cls=>{const d=document.createElement("div");d.className="more "+cls;return d},m2=mk("l"),m3=mk("f"),m4=mk("t"),th=document.createElement("img"),lg=fld("Logo (URL de imagen o ruta como logos/canal.png)","img",i,"https://.../logo.png");
+    const mk=cls=>{const d=document.createElement("div");d.className="more "+cls;return d},m2=mk("l"),m3=mk("f"),m4=mk("t"),m5=mk("k"),th=document.createElement("img"),lg=fld("Logo (URL de imagen o ruta como logos/canal.png)","img",i,"https://.../logo.png");
     th.className="thumb";th.alt="";const sh=()=>{th.style.visibility=c.img?"visible":"hidden";if(c.img)th.src=c.img};sh();th.onerror=()=>{th.style.visibility="hidden"};lg.querySelector("input").addEventListener("input",sh);
     m2.append(th,lg);m3.append(fld("Público (ej: familiar, adultos, niños)","pub",i,""),fld("Idioma","lang",i,"Español"),fld("País","country",i,""));
     m4.append(tfld("Descripción: de qué trata el canal","desc",i,"Canal de noticias las 24 horas..."));
-    r.append(m2,m3,m4);
+    const lp=document.createElement("label"),cb2=document.createElement("input");
+    lp.className="live";cb2.type="checkbox";cb2.checked=!!c.loop;cb2.onchange=()=>{c.loop=cb2.checked?1:0;mark()};lp.append(cb2,"Guía repetida cada día (el .xml siempre trae el mismo día)");
+    m5.append(lp,btn("Probar guía",()=>probar(c),"Descarga el epg.xml y comprueba que funcione"));
+    r.append(m5,m2,m3,m4);
     box.append(r);
   });
   if(!box.childElementCount)box.innerHTML='<p class="card" style="color:var(--mut);text-align:center">No hay canales. Agrega uno o importa una lista M3U.</p>';
@@ -120,7 +146,7 @@ $("imp").onclick=()=>{
 $("save").onclick=async()=>{
   const bad=ch.findIndex(c=>!(c.n||"").trim()||!/^https?:\/\//i.test((c.u||"").trim()));
   if(bad>=0)return msg("El canal #"+(bad+1)+" necesita nombre y una URL que empiece con http:// o https://.",1);
-  const list=ch.map(c=>{const o={n:c.n.trim(),c:(c.c||"Mis canales").trim()||"Mis canales",u:c.u.trim()};if(c.live)o.live=1;if((c.id||"").trim())o.id=c.id.trim();if((c.e||"").trim())o.e=c.e.trim();["img","desc","pub","lang","country"].forEach(k=>{if((c[k]||"").trim())o[k]=c[k].trim()});return o});
+  const list=ch.map(c=>{const o={n:c.n.trim(),c:(c.c||"Mis canales").trim()||"Mis canales",u:c.u.trim()};if(c.live)o.live=1;if(c.loop)o.loop=1;if((c.id||"").trim())o.id=c.id.trim();if((c.e||"").trim())o.e=c.e.trim();["img","desc","pub","lang","country"].forEach(k=>{if((c[k]||"").trim())o[k]=c[k].trim()});return o});
   if(new Blob([JSON.stringify(list)]).size>900000)return msg("La lista es demasiado grande para Firestore (límite 1 MiB). Usa URLs de logo en lugar de imágenes incrustadas y descripciones más cortas.",1);
   try{await setDoc(ref,{list,updated:Date.now()});ch=list;dirty=false;$("save").textContent="Guardar cambios";msg("Guardado. La página principal ya muestra los cambios.");render()}
   catch(e){msg("No se pudo guardar ("+e.code+"). Revisa que tu UID esté en las reglas de Firestore.",1)}
