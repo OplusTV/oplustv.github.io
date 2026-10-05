@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#060e17">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="O-PLUS TV">
 <title>O-PLUS TV</title>
 <link rel="icon" href="favicon-64.png" type="image/png" sizes="64x64">
 <link rel="icon" href="favicon-192.png" type="image/png" sizes="192x192">
@@ -17,7 +20,7 @@
 :root{--bg:#060e17;--panel:#0d1c2e;--panel2:#112540;--line:#1d3550;--navy:#163959;--cyan:#1fc8d6;--mag:#c2347f;--txt:#eaf2f8;--mut:#8da5ba;color-scheme:dark;--plyr-color-main:var(--cyan)}
 *{box-sizing:border-box;margin:0}
 [hidden]{display:none!important}
-html,body{height:100%}
+html,body{height:100%;overscroll-behavior:none}
 body{background:radial-gradient(900px 500px at 5% -10%,rgba(31,200,214,.15),transparent 60%),radial-gradient(800px 500px at 100% 0,rgba(194,52,127,.14),transparent 60%),var(--bg);background-attachment:fixed;color:var(--txt);font:400 15px/1.5 Poppins,system-ui,Segoe UI,sans-serif;display:flex;flex-direction:column}
 button,input,textarea,select{font:inherit;color:inherit}
 button{cursor:pointer}
@@ -120,13 +123,14 @@ dialog textarea{height:110px;resize:vertical}
     <span>O-PLUS<sup>TV</sup></span>
   </div>
   <label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" type="search" placeholder="Buscar canal" aria-label="Buscar canal"></label>
+  <button class="btn" id="inst" hidden>Instalar app</button>
   <button class="btn" id="gbtn">Guía</button>
 </header>
 <main>
   <section class="stage">
     <div class="screen">
       <video id="v" controls playsinline autoplay></video>
-      <div class="over" id="ov"><div><div class="spin"></div><strong id="ovt">Cargando señal</strong><p id="ovp"></p></div></div>
+      <div class="over" id="ov"><div><div class="spin"></div><strong id="ovt">Cargando señal</strong><p id="ovp"></p><button class="btn" id="retry" hidden style="margin-top:14px">Reintentar</button></div></div>
     </div>
     <div class="info">
       <div class="titles"><img id="clogo" class="clogo" alt="" hidden><div><h1 id="title">O-PLUS TV</h1><div class="tags"><span class="tag" id="cat"></span><span class="tag live" id="live" hidden>EN VIVO</span></div></div></div>
@@ -135,11 +139,12 @@ dialog textarea{height:110px;resize:vertical}
         <button class="btn" id="prev" title="Canal anterior (↑)">‹ Anterior</button>
         <button class="btn" id="next" title="Canal siguiente (↓)">Siguiente ›</button>
         <button class="btn" id="fs" title="Pantalla completa (F)">Pantalla completa</button>
+        <button class="btn" id="share" title="Copiar enlace a este canal">Compartir</button>
       </div>
       <div class="nowbox" id="nowbox" hidden></div>
       <div class="about" id="about" hidden></div>
     </div>
-    <p class="hint">Atajos: ↑ ↓ cambian de canal · F pantalla completa · G guía · M silencio</p>
+    <p class="hint">Atajos: ↑ ↓ cambian de canal · F pantalla completa · G guía · M silencio · / buscar</p>
   </section>
   <aside>
     <div class="chips" id="chips" role="group" aria-label="Categorías"></div>
@@ -234,12 +239,12 @@ function drawList(){
     f.onclick=e=>{e.stopPropagation();favs=favs.includes(c.u)?favs.filter(x=>x!==c.u):[...favs,c.u];store.set("op_favs",favs);drawList()};
     b.append(n,l,t,f);b.onclick=()=>play(all().indexOf(c));li.append(b);ul.append(li)});
 }
-function overlay(show,title,msg){$("ov").hidden=!show;document.querySelector('.screen').classList.toggle('hide-controls',show);if(show){$("ovt").textContent=title;$("ovp").textContent=(msg||"")+(title.startsWith("No se pudo")&&dlog.length?"\n\nDiagnóstico:\n"+dlog.join("\n"):"");$("ov").querySelector(".spin").style.display=title.startsWith("Cargando")?"":"none"}}
+function overlay(show,title,msg){$("ov").hidden=!show;document.querySelector('.screen').classList.toggle('hide-controls',show);if(show){$("ovt").textContent=title;$("ovp").textContent=(msg||"")+(title.startsWith("No se pudo")&&dlog.length?"\n\nDiagnóstico:\n"+dlog.join("\n"):"");$("ov").querySelector(".spin").style.display=title.startsWith("Cargando")?"":"none";$("retry").hidden=!title.startsWith("No se pudo")}}
 function destroy(){if(hls){hls.destroy();hls=null}if(mp){try{mp.destroy()}catch{}mp=null}if(eitCtl){eitCtl.abort();eitCtl=null}v.onerror=null;v.removeAttribute("src");v.load();const q=$("qual");q.length=1;q.value="-1"}
 
 function play(i){
   const list=all(); if(!list.length)return; cur=(i+list.length)%list.length; const c=list[cur];
-  destroy(); $("title").textContent=c.n;chanInfo(c);loadXml(c.e); $("cat").textContent=c.c; $("live").hidden=!c.live; document.title=c.n+" · O-PLUS TV";
+  destroy(); $("title").textContent=c.n;chanInfo(c);loadXml(c.e);mediaInfo(c);syncHash(c); $("cat").textContent=c.c; $("live").hidden=!c.live; document.title=c.n+" · O-PLUS TV";
   store.set("op_last",c.u);nowBox(); overlay(true,"Cargando señal"); drawList();
   const fail=m=>overlay(true,"No se pudo reproducir",m||"La señal no responde o el servidor no permite reproducirla desde esta página. Prueba con otro canal.");
   const tok=++playTok;go(c,tok,fail);
@@ -278,7 +283,35 @@ document.addEventListener("keydown",e=>{
   else if(e.key==="f"||e.key==="F")fs();
   else if(e.key==="g"||e.key==="G")openGuide();
   else if(e.key==="m"||e.key==="M")v.muted=!v.muted;
+  else if(e.key==="/"){e.preventDefault();$("q").focus()}
 });
+
+// ---- Mejoras de uso: PWA, volumen, pantalla encendida, notificación multimedia, enlaces ----
+let ip=null;
+addEventListener("beforeinstallprompt",e=>{e.preventDefault();ip=e;$("inst").hidden=false});
+addEventListener("appinstalled",()=>{$("inst").hidden=true});
+$("inst").onclick=async()=>{if(!ip)return;ip.prompt();await ip.userChoice;ip=null;$("inst").hidden=true};
+if("serviceWorker"in navigator&&location.protocol.startsWith("http"))addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
+v.volume=store.get("op_vol",1);v.muted=store.get("op_mute",false);   // recuerda volumen y silencio
+v.addEventListener("volumechange",()=>{store.set("op_vol",v.volume);store.set("op_mute",v.muted)});
+let wl=null;   // evita que la pantalla se apague mientras ves un canal
+const lock=async()=>{try{if("wakeLock"in navigator&&!wl&&!v.paused){wl=await navigator.wakeLock.request("screen");wl.onrelease=()=>{wl=null}}}catch{}};
+v.addEventListener("playing",lock);v.addEventListener("pause",()=>{if(wl)wl.release()});
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)lock()});
+function mediaInfo(c){
+  if(!("mediaSession"in navigator))return;
+  const abs=u=>new URL(u,location.href).href;
+  navigator.mediaSession.metadata=new MediaMetadata({title:c.n,artist:c.c||"O-PLUS TV",album:"O-PLUS TV",artwork:[{src:abs(c.img||"favicon-192.png")}]});
+}
+if("mediaSession"in navigator)try{navigator.mediaSession.setActionHandler("previoustrack",()=>play(cur-1));navigator.mediaSession.setActionHandler("nexttrack",()=>play(cur+1))}catch{}
+const syncHash=c=>{try{history.replaceState(null,"","#c="+encodeURIComponent(c.id||c.n))}catch{}};
+$("share").onclick=async()=>{
+  const c=all()[cur];if(!c)return;const u=location.origin+location.pathname+"#c="+encodeURIComponent(c.id||c.n);
+  try{if(navigator.share)await navigator.share({title:c.n+" · O-PLUS TV",url:u});
+    else{await navigator.clipboard.writeText(u);const b=$("share");b.textContent="¡Enlace copiado!";setTimeout(()=>b.textContent="Compartir",1600)}}catch{}
+};
+$("retry").onclick=()=>play(cur);
+addEventListener("online",()=>{if(cur>=0&&!$("ov").hidden&&$("retry").hidden===false)play(cur)});   // reconecta al volver el internet
 
 // ---- EPG (XMLTV) ----
 let epg={},alias={},tvgUrl="";
@@ -551,7 +584,7 @@ async function readEit(c,tok){
 loadRemote().then(()=>{drawChips();drawList();
 if(!remoteOk)loadDemo();{const eu=store.get("op_epgurl","");if(eu){$("eu").value=eu;loadEpgUrl(eu)}}
 all().forEach(c=>loadXml(c.e));setInterval(()=>{xmlDone.clear();all().forEach(c=>loadXml(c.e))},3*3600000);
-const last=store.get("op_last",null), li=all().findIndex(c=>c.u===last);
+const hc=decodeURIComponent((location.hash.match(/^#c=(.+)/)||[])[1]||""),last=store.get("op_last",null), li=hc?all().findIndex(c=>norm(c.id||c.n)===norm(hc)):all().findIndex(c=>c.u===last);
 play(li>=0?li:0);
 });
 </script>

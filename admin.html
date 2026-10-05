@@ -1,5 +1,8 @@
 <!DOCTYPE html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#060e17">
+<link rel="manifest" href="admin.webmanifest">
+<meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="O-PLUS Admin">
 <title>Admin · O-PLUS TV</title><meta name="robots" content="noindex">
 <link rel="icon" href="favicon-64.png" type="image/png" sizes="64x64">
 <link rel="icon" href="favicon-192.png" type="image/png" sizes="192x192">
@@ -16,6 +19,7 @@ input:focus{border-color:var(--cyan);outline:0}
 .btn:hover{border-color:var(--cyan)}.btn.main{background:linear-gradient(135deg,var(--mag),#8f2a9e);border-color:transparent}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:24px}
 #login{max-width:380px;margin:12vh auto 0}#login h1{font-size:22px;margin-bottom:14px}#login label{display:block;margin:10px 0 4px;color:var(--mut);font-size:13px}#login .btn{width:100%;margin-top:16px}
+a.btn{text-decoration:none;color:inherit;display:inline-block}html{overscroll-behavior:none}
 .err{color:#ff8a9b}.ok{color:var(--cyan)}
 header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 24px;border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(6,14,23,.92);backdrop-filter:blur(10px);z-index:5}
 header h1{font-size:18px;margin-right:auto}header small{color:var(--mut)}
@@ -39,9 +43,9 @@ details{margin-bottom:14px}summary{cursor:pointer;color:var(--cyan)}textarea{wid
   <button class="btn main">Entrar</button>
 </form>
 <div id="app" hidden>
-  <header><h1>O-PLUS TV · Canales</h1><small id="who"></small><button class="btn" id="out">Salir</button><button class="btn main" id="save">Guardar cambios</button></header>
+  <header><h1>O-PLUS TV · Canales</h1><small id="who"></small><a class="btn" href="./" target="_blank" rel="noopener">Ver página</a><button class="btn" id="inst" hidden>Instalar app</button><button class="btn" id="out">Salir</button><button class="btn main" id="save">Guardar cambios</button></header>
   <div class="wrap">
-    <div class="tools"><button class="btn" id="add">+ Agregar canal</button><input id="flt" type="search" placeholder="Filtrar por nombre o categoría"></div>
+    <div class="tools"><button class="btn" id="add">+ Agregar canal</button><small id="cnt" style="color:var(--mut);align-self:center"></small><button class="btn" id="bk" title="Descarga todos los canales como archivo .json">Descargar copia</button><label class="btn" for="rs" title="Reemplaza la lista por una copia descargada antes">Restaurar copia</label><input id="rs" type="file" accept=".json,application/json" hidden><input id="flt" type="search" placeholder="Filtrar por nombre o categoría"></div>
     <details><summary>Importar lista M3U</summary><textarea id="m3u" placeholder="#EXTM3U&#10;#EXTINF:-1 group-title=&quot;Noticias&quot;,Canal&#10;https://..."></textarea><button class="btn" id="imp">Agregar a la lista</button></details>
     <p id="msg"></p><div id="rows"></div><datalist id="cats"></datalist>
   </div>
@@ -73,7 +77,7 @@ function tfld(label,key,i,ph){
 }
 function btn(t,fn,title){const b=document.createElement("button");b.className="btn";b.type="button";b.textContent=t;b.title=title||"";b.onclick=fn;return b}
 function render(){
-  const q=$("flt").value.trim().toLowerCase(),box=$("rows");box.textContent="";
+  const q=$("flt").value.trim().toLowerCase(),box=$("rows");box.textContent="";$("cnt").textContent=ch.length+" canales";
   $("cats").innerHTML="";[...new Set(ch.map(c=>c.c).filter(Boolean))].forEach(c=>$("cats").append(new Option(c)));
   ch.forEach((c,i)=>{
     if(q&&!((c.n||"")+" "+(c.c||"")).toLowerCase().includes(q))return;
@@ -81,7 +85,7 @@ function render(){
     r.className="card row";r.style.padding="14px";n.className="n";n.textContent=i+1;m.className="more";a.className="act";lv.className="live";
     cb.type="checkbox";cb.checked=!!c.live;cb.onchange=()=>{c.live=cb.checked?1:0;mark()};lv.append(cb,"En vivo");
     const mv=d=>()=>{const j=i+d;if(j<0||j>=ch.length)return;[ch[i],ch[j]]=[ch[j],ch[i]];mark();render()};
-    a.append(btn("↑",mv(-1),"Subir"),btn("↓",mv(1),"Bajar"),btn("✕",()=>{if(confirm("¿Borrar «"+(c.n||"sin nombre")+"»?")){ch.splice(i,1);mark();render()}},"Borrar"));
+    a.append(btn("↑",mv(-1),"Subir"),btn("↓",mv(1),"Bajar"),btn("⧉",()=>{ch.splice(i+1,0,{...c,n:(c.n||"")+" (copia)"});mark();render()},"Duplicar"),btn("✕",()=>{if(confirm("¿Borrar «"+(c.n||"sin nombre")+"»?")){ch.splice(i,1);mark();render()}},"Borrar"));
     m.append(fld("Guía: URL del epg.xml (XMLTV), o del stream .ts para leer su guía integrada","e",i,"https://.../epg.xml"),fld("ID de la guía (tvg-id, opcional)","id",i,""),lv);
     r.append(n,fld("Nombre","n",i,"Mi canal"),fld("Categoría","c",i,"Noticias","cats"),fld("URL del canal (.m3u8 o http://ip:puerto/play/id)","u",i,"https://..."),a,document.createElement("span"),m);
     const mk=cls=>{const d=document.createElement("div");d.className="more "+cls;return d},m2=mk("l"),m3=mk("f"),m4=mk("t"),th=document.createElement("img"),lg=fld("Logo (URL de imagen o ruta como logos/canal.png)","img",i,"https://.../logo.png");
@@ -94,6 +98,16 @@ function render(){
   if(!box.childElementCount)box.innerHTML='<p class="card" style="color:var(--mut);text-align:center">No hay canales. Agrega uno o importa una lista M3U.</p>';
 }
 $("flt").oninput=render;
+addEventListener("keydown",e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="s"&&!$("app").hidden){e.preventDefault();$("save").click()}});
+$("bk").onclick=()=>{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(ch,null,1)],{type:"application/json"}));a.download="oplus-canales-"+new Date().toISOString().slice(0,10)+".json";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
+$("rs").onchange=async e=>{const f=e.target.files[0];e.target.value="";if(!f)return;
+  try{const j=JSON.parse(await f.text());if(!Array.isArray(j))throw 0;if(!confirm("Esto reemplaza la lista actual ("+ch.length+" canales) por la copia ("+j.length+"). ¿Continuar?"))return;ch=j.map(c=>({...c}));mark();render();msg("Copia cargada (todavía sin guardar).")}
+  catch{msg("El archivo no es una copia válida.",1)}};
+let ip=null;
+addEventListener("beforeinstallprompt",e=>{e.preventDefault();ip=e;$("inst").hidden=false});
+addEventListener("appinstalled",()=>{$("inst").hidden=true});
+$("inst").onclick=async()=>{if(!ip)return;ip.prompt();await ip.userChoice;ip=null;$("inst").hidden=true};
+if("serviceWorker"in navigator&&location.protocol.startsWith("http"))navigator.serviceWorker.register("sw.js").catch(()=>{});
 $("add").onclick=()=>{ch.unshift({n:"",c:"Mis canales",u:"",live:1});$("flt").value="";mark();render()};
 $("imp").onclick=()=>{
   const out=[];let meta=null;
