@@ -79,7 +79,7 @@ function render(){
     cb.type="checkbox";cb.checked=!!c.live;cb.onchange=()=>{c.live=cb.checked?1:0;mark()};lv.append(cb,"En vivo");
     const mv=d=>()=>{const j=i+d;if(j<0||j>=ch.length)return;[ch[i],ch[j]]=[ch[j],ch[i]];mark();render()};
     a.append(btn("↑",mv(-1),"Subir"),btn("↓",mv(1),"Bajar"),btn("✕",()=>{if(confirm("¿Borrar «"+(c.n||"sin nombre")+"»?")){ch.splice(i,1);mark();render()}},"Borrar"));
-    m.append(fld("URL original (solo para leer la guía, opcional)","e",i,"http://ip:puerto/play/id"),fld("ID de la guía (tvg-id, opcional)","id",i,""),lv);
+    m.append(fld("Guía: URL del epg.xml (XMLTV), o del stream .ts para leer su guía integrada","e",i,"https://.../epg.xml"),fld("ID de la guía (tvg-id, opcional)","id",i,""),lv);
     r.append(n,fld("Nombre","n",i,"Mi canal"),fld("Categoría","c",i,"Noticias","cats"),fld("URL del canal (.m3u8 o http://ip:puerto/play/id)","u",i,"https://..."),a,document.createElement("span"),m);
     const mk=cls=>{const d=document.createElement("div");d.className="more "+cls;return d},m2=mk("l"),m3=mk("f"),m4=mk("t"),th=document.createElement("img"),lg=fld("Logo (URL de imagen o ruta como logos/canal.png)","img",i,"https://.../logo.png");
     th.className="thumb";th.alt="";const sh=()=>{th.style.visibility=c.img?"visible":"hidden";if(c.img)th.src=c.img};sh();th.onerror=()=>{th.style.visibility="hidden"};lg.querySelector("input").addEventListener("input",sh);
