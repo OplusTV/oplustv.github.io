@@ -31,9 +31,9 @@ header h1{font-size:18px;margin-right:auto}header small{color:var(--mut)}
 .row .more.k{grid-template-columns:auto auto 1fr}.row .more{grid-column:2/-1;display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end}
 .act{display:flex;gap:4px;align-items:center}.act .btn{padding:6px 10px}.live{display:flex;gap:6px;align-items:center;padding-bottom:8px;white-space:nowrap}.live input{width:auto}
 details{margin-bottom:14px}summary{cursor:pointer;color:var(--cyan)}textarea{width:100%;height:110px;margin:8px 0;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 12px;color:var(--txt)}
-.row .more.l{grid-template-columns:44px 1fr}.row .more.f{grid-template-columns:1fr 1fr 1fr}.row .more.t{grid-template-columns:1fr}
+.row .more.l{grid-template-columns:44px 1fr auto}input[type=color]{width:56px;height:38px;padding:2px;cursor:pointer}.row .more.f{grid-template-columns:1fr 1fr 1fr}.row .more.t{grid-template-columns:1fr}
 .row textarea{height:70px;margin:0;resize:vertical}.thumb{width:44px;height:44px;border-radius:10px;object-fit:contain;background:rgba(255,255,255,.08)}
-@media(max-width:800px){.row .more.f,.row .more.k{grid-template-columns:1fr}.row{grid-template-columns:1fr}.row .more{grid-column:1;grid-template-columns:1fr}.row .n{text-align:left;padding:0}}
+@media(max-width:800px){.row .more.l{grid-template-columns:44px 1fr}.row .more.l .col{grid-column:1/-1}.row .more.f,.row .more.k{grid-template-columns:1fr}.row{grid-template-columns:1fr}.row .more{grid-column:1;grid-template-columns:1fr}.row .n{text-align:left;padding:0}}
 </style></head><body>
 <form id="login" class="card">
   <h1>Panel de administración</h1>
@@ -113,7 +113,11 @@ function render(){
     r.append(n,fld("Nombre","n",i,"Mi canal"),fld("Categoría","c",i,"Noticias","cats"),fld("URL del canal (.m3u8 o http://ip:puerto/play/id)","u",i,"https://..."),a,document.createElement("span"),m);
     const mk=cls=>{const d=document.createElement("div");d.className="more "+cls;return d},m2=mk("l"),m3=mk("f"),m4=mk("t"),m5=mk("k"),th=document.createElement("img"),lg=fld("Logo (URL de imagen o ruta como logos/canal.png)","img",i,"https://.../logo.png");
     th.className="thumb";th.alt="";const sh=()=>{th.style.visibility=c.img?"visible":"hidden";if(c.img)th.src=c.img};sh();th.onerror=()=>{th.style.visibility="hidden"};lg.querySelector("input").addEventListener("input",sh);
-    m2.append(th,lg);m3.append(fld("Público (ej: familiar, adultos, niños)","pub",i,""),fld("Idioma","lang",i,"Español"),fld("País","country",i,""));
+    const cw=document.createElement("label"),cr=document.createElement("div"),ci=document.createElement("input");
+    cw.className="col";cw.append("Color del canal");cr.style.cssText="display:flex;gap:6px";ci.type="color";ci.value=c.color||"#163959";ci.style.opacity=c.color?1:.4;
+    ci.oninput=()=>{c.color=ci.value;ci.style.opacity=1;mark()};
+    cr.append(ci,btn("Quitar",()=>{c.color="";ci.value="#163959";ci.style.opacity=.4;mark()},"Sin color (usa el neutro)"));cw.append(cr);
+    m2.append(th,lg,cw);m3.append(fld("Público (ej: familiar, adultos, niños)","pub",i,""),fld("Idioma","lang",i,"Español"),fld("País","country",i,""));
     m4.append(tfld("Descripción: de qué trata el canal","desc",i,"Canal de noticias las 24 horas..."));
     const lp=document.createElement("label"),cb2=document.createElement("input");
     lp.className="live";cb2.type="checkbox";cb2.checked=!!c.loop;cb2.onchange=()=>{c.loop=cb2.checked?1:0;mark()};lp.append(cb2,"Guía repetida cada día (el .xml siempre trae el mismo día)");
@@ -146,7 +150,7 @@ $("imp").onclick=()=>{
 $("save").onclick=async()=>{
   const bad=ch.findIndex(c=>!(c.n||"").trim()||!/^https?:\/\//i.test((c.u||"").trim()));
   if(bad>=0)return msg("El canal #"+(bad+1)+" necesita nombre y una URL que empiece con http:// o https://.",1);
-  const list=ch.map(c=>{const o={n:c.n.trim(),c:(c.c||"Mis canales").trim()||"Mis canales",u:c.u.trim()};if(c.live)o.live=1;if(c.loop)o.loop=1;if((c.id||"").trim())o.id=c.id.trim();if((c.e||"").trim())o.e=c.e.trim();["img","desc","pub","lang","country"].forEach(k=>{if((c[k]||"").trim())o[k]=c[k].trim()});return o});
+  const list=ch.map(c=>{const o={n:c.n.trim(),c:(c.c||"Mis canales").trim()||"Mis canales",u:c.u.trim()};if(c.live)o.live=1;if(c.loop)o.loop=1;if((c.id||"").trim())o.id=c.id.trim();if((c.e||"").trim())o.e=c.e.trim();["img","desc","pub","lang","country","color"].forEach(k=>{if((c[k]||"").trim())o[k]=c[k].trim()});return o});
   if(new Blob([JSON.stringify(list)]).size>900000)return msg("La lista es demasiado grande para Firestore (límite 1 MiB). Usa URLs de logo en lugar de imágenes incrustadas y descripciones más cortas.",1);
   try{await setDoc(ref,{list,updated:Date.now()});ch=list;dirty=false;$("save").textContent="Guardar cambios";msg("Guardado. La página principal ya muestra los cambios.");render()}
   catch(e){msg("No se pudo guardar ("+e.code+"). Revisa que tu UID esté en las reglas de Firestore.",1)}
