@@ -27,13 +27,13 @@ header h1{font-size:18px;margin-right:auto}header small{color:var(--mut)}
 .tools{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}.tools input{max-width:280px;border-radius:999px;margin-left:auto}
 #msg{min-height:24px;margin-bottom:10px}
 .row{display:grid;grid-template-columns:34px 1.2fr 1fr 2.2fr auto;gap:8px 10px;align-items:end;margin-bottom:10px}
-.row label{font-size:12px;color:var(--mut);display:block}.row .n{color:var(--mut);padding-bottom:10px;text-align:right}
+.row label{font-size:12px;color:var(--mut);display:block}.row .n{color:var(--mut);display:flex;flex-direction:column;align-items:center;gap:8px;padding-top:22px;align-self:start}.row .n input{width:auto;accent-color:var(--cyan)}.hd{cursor:grab;font-size:18px;line-height:1;user-select:none}
 .row .more.k{grid-template-columns:auto auto 1fr}.row .more{grid-column:2/-1;display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end}
 .act{display:flex;gap:4px;align-items:center}.act .btn{padding:6px 10px}.live{display:flex;gap:6px;align-items:center;padding-bottom:8px;white-space:nowrap}.live input{width:auto}
 details{margin-bottom:14px}summary{cursor:pointer;color:var(--cyan)}textarea{width:100%;height:110px;margin:8px 0;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 12px;color:var(--txt)}
 .row .more.l{grid-template-columns:44px 1fr auto}input[type=color]{width:56px;height:38px;padding:2px;cursor:pointer}.row .more.f{grid-template-columns:1fr 1fr 1fr}.row .more.t{grid-template-columns:1fr}
 .row textarea{height:70px;margin:0;resize:vertical}.thumb{width:44px;height:44px;border-radius:10px;object-fit:contain;background:rgba(255,255,255,.08)}
-@media(max-width:800px){.row .more.l{grid-template-columns:44px 1fr}.row .more.l .col{grid-column:1/-1}.row .more.f,.row .more.k{grid-template-columns:1fr}.row{grid-template-columns:1fr}.row .more{grid-column:1;grid-template-columns:1fr}.row .n{text-align:left;padding:0}}
+@media(max-width:800px){.row .more.l{grid-template-columns:44px 1fr}.row .more.l .col{grid-column:1/-1}.row .more.f,.row .more.k{grid-template-columns:1fr}.row{grid-template-columns:1fr}.row .more{grid-column:1;grid-template-columns:1fr}.row .n{flex-direction:row;justify-content:flex-start;padding:0}}
 </style></head><body>
 <form id="login" class="card">
   <h1>Panel de administración</h1>
@@ -45,7 +45,8 @@ details{margin-bottom:14px}summary{cursor:pointer;color:var(--cyan)}textarea{wid
 <div id="app" hidden>
   <header><h1>O-PLUS TV · Canales</h1><small id="who"></small><a class="btn" href="./" target="_blank" rel="noopener">Ver página</a><button class="btn" id="inst" hidden>Instalar app</button><button class="btn" id="out">Salir</button><button class="btn main" id="save">Guardar cambios</button></header>
   <div class="wrap">
-    <div class="tools"><button class="btn" id="add">+ Agregar canal</button><small id="cnt" style="color:var(--mut);align-self:center"></small><button class="btn" id="bk" title="Descarga todos los canales como archivo .json">Descargar copia</button><label class="btn" for="rs" title="Reemplaza la lista por una copia descargada antes">Restaurar copia</label><input id="rs" type="file" accept=".json,application/json" hidden><input id="flt" type="search" placeholder="Filtrar por nombre o categoría"></div>
+    <div class="tools"><button class="btn" id="add">+ Agregar canal</button><button class="btn" id="undo" disabled title="Ctrl+Z">↶ Deshacer</button><button class="btn" id="redo" disabled title="Ctrl+Y">↷ Rehacer</button><button class="btn" id="bsel">Seleccionar visibles</button><button class="btn" id="az" title="Ordena por categoría y nombre">Ordenar A–Z</button><small id="cnt" style="color:var(--mut);align-self:center"></small><button class="btn" id="bk" title="Descarga todos los canales como archivo .json">Descargar copia</button><label class="btn" for="rs" title="Reemplaza la lista por una copia descargada antes">Restaurar copia</label><input id="rs" type="file" accept=".json,application/json" hidden><input id="flt" type="search" placeholder="Filtrar por nombre o categoría"></div>
+    <div class="card" id="bulk" hidden style="padding:12px 16px;margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><strong id="bn"></strong><input id="bcat" list="cats" placeholder="Nueva categoría" style="max-width:220px"><button class="btn" id="bset">Cambiar categoría</button><button class="btn" id="bdel">Borrar</button><button class="btn" id="bno">Quitar selección</button></div>
     <details><summary>Importar lista M3U</summary><textarea id="m3u" placeholder="#EXTM3U&#10;#EXTINF:-1 group-title=&quot;Noticias&quot;,Canal&#10;https://..."></textarea><button class="btn" id="imp">Agregar a la lista</button></details>
     <p id="msg"></p><div id="rows"></div><datalist id="cats"></datalist>
   </div>
@@ -56,7 +57,11 @@ import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase
 import {getAuth,signInWithEmailAndPassword,signOut,onAuthStateChanged} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {getFirestore,doc,getDoc,setDoc} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 const $=id=>document.getElementById(id),app=initializeApp(FB),auth=getAuth(app),ref=doc(getFirestore(app),"config","channels");
-let ch=[],dirty=false;
+let ch=[],dirty=false,dragC=null,und=[],red=[];const sel=new Set();
+const snap=()=>{const j=JSON.stringify(ch);if(und[und.length-1]!==j){und.push(j);if(und.length>40)und.shift();red=[];upd()}};
+function upd(){$("undo").disabled=!und.length;$("redo").disabled=!red.length;$("bulk").hidden=!sel.size;$("bn").textContent=sel.size+" seleccionados"}
+function undo(){const c=JSON.stringify(ch);while(und.length&&und[und.length-1]===c)und.pop();if(!und.length)return upd();red.push(c);ch=JSON.parse(und.pop());sel.clear();mark();render()}
+function redo(){if(!red.length)return;und.push(JSON.stringify(ch));ch=JSON.parse(red.pop());sel.clear();mark();render()}
 const msg=(t,e)=>{$("msg").textContent=t;$("msg").className=e?"err":"ok"};
 const mark=()=>{dirty=true;$("save").textContent="Guardar cambios *"};
 addEventListener("beforeunload",e=>{if(dirty)e.preventDefault()});
@@ -69,11 +74,11 @@ onAuthStateChanged(auth,async u=>{
 });
 function fld(label,key,i,ph,list){
   const l=document.createElement("label"),x=document.createElement("input");l.append(label);x.value=ch[i][key]||"";x.placeholder=ph||"";if(list)x.setAttribute("list",list);
-  x.oninput=()=>{ch[i][key]=x.value;mark()};l.append(x);return l;
+  x.onfocus=snap;x.oninput=()=>{ch[i][key]=x.value;mark()};l.append(x);return l;
 }
 function tfld(label,key,i,ph){
   const l=document.createElement("label"),x=document.createElement("textarea");l.append(label);x.value=ch[i][key]||"";x.placeholder=ph||"";
-  x.oninput=()=>{ch[i][key]=x.value;mark()};l.append(x);return l;
+  x.onfocus=snap;x.oninput=()=>{ch[i][key]=x.value;mark()};l.append(x);return l;
 }
 const nz=s=>(s||"").toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"");
 const xt=s=>{const m=/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)(\d\d)?\s*([+-]\d{4})?/.exec((s||"").trim());if(!m)return NaN;let t=Date.UTC(+m[1],m[2]-1,+m[3],+m[4],+m[5],+(m[6]||0));if(m[7]){const o=parseInt(m[7].slice(1,3))*60+parseInt(m[7].slice(3));t-=(m[7][0]==="-"?-1:1)*o*60000}return t};
@@ -100,27 +105,36 @@ async function probar(c){
 }
 function btn(t,fn,title){const b=document.createElement("button");b.className="btn";b.type="button";b.textContent=t;b.title=title||"";b.onclick=fn;return b}
 function render(){
-  const q=$("flt").value.trim().toLowerCase(),box=$("rows");box.textContent="";$("cnt").textContent=ch.length+" canales";
+  const q=$("flt").value.trim().toLowerCase(),box=$("rows");box.textContent="";$("cnt").textContent=ch.length+" canales";upd();
   $("cats").innerHTML="";[...new Set(ch.map(c=>c.c).filter(Boolean))].forEach(c=>$("cats").append(new Option(c)));
   ch.forEach((c,i)=>{
     if(q&&!((c.n||"")+" "+(c.c||"")).toLowerCase().includes(q))return;
     const r=document.createElement("div"),n=document.createElement("div"),m=document.createElement("div"),a=document.createElement("div"),lv=document.createElement("label"),cb=document.createElement("input");
-    r.className="card row";r.style.padding="14px";n.className="n";n.textContent=i+1;m.className="more";a.className="act";lv.className="live";
-    cb.type="checkbox";cb.checked=!!c.live;cb.onchange=()=>{c.live=cb.checked?1:0;mark()};lv.append(cb,"En vivo");
-    const mv=d=>()=>{const j=i+d;if(j<0||j>=ch.length)return;[ch[i],ch[j]]=[ch[j],ch[i]];mark();render()};
-    a.append(btn("↑",mv(-1),"Subir"),btn("↓",mv(1),"Bajar"),btn("⧉",()=>{ch.splice(i+1,0,{...c,n:(c.n||"")+" (copia)"});mark();render()},"Duplicar"),btn("✕",()=>{if(confirm("¿Borrar «"+(c.n||"sin nombre")+"»?")){ch.splice(i,1);mark();render()}},"Borrar"));
+    r.className="card row";r.style.padding="14px";n.className="n";
+    const sc=document.createElement("input"),nn=document.createElement("span"),hd=document.createElement("span");
+    sc.type="checkbox";sc.checked=sel.has(c);sc.title="Seleccionar";sc.onchange=()=>{sc.checked?sel.add(c):sel.delete(c);upd()};
+    nn.textContent=i+1;hd.className="hd";hd.textContent="⠿";hd.title="Arrastra para reordenar";hd.draggable=true;
+    hd.ondragstart=e=>{dragC=c;e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain","");e.dataTransfer.setDragImage(r,20,20)};
+    hd.ondragend=()=>{dragC=null};
+    r.ondragover=e=>{if(dragC){e.preventDefault();r.style.outline="2px solid var(--cyan)"}};
+    r.ondragleave=()=>{r.style.outline=""};
+    r.ondrop=e=>{e.preventDefault();r.style.outline="";if(!dragC||dragC===c)return;snap();const t0=ch.indexOf(c),a=ch.indexOf(dragC);ch.splice(a,1);ch.splice(t0,0,dragC);dragC=null;mark();render()};
+    n.append(sc,nn,hd);m.className="more";a.className="act";lv.className="live";
+    cb.type="checkbox";cb.checked=!!c.live;cb.onchange=()=>{snap();c.live=cb.checked?1:0;mark()};lv.append(cb,"En vivo");
+    const mv=d=>()=>{const j=i+d;if(j<0||j>=ch.length)return;snap();[ch[i],ch[j]]=[ch[j],ch[i]];mark();render()};
+    a.append(btn("↑",mv(-1),"Subir"),btn("↓",mv(1),"Bajar"),btn("⧉",()=>{snap();ch.splice(i+1,0,{...c,n:(c.n||"")+" (copia)"});mark();render()},"Duplicar"),btn("✕",()=>{if(confirm("¿Borrar «"+(c.n||"sin nombre")+"»?")){snap();ch.splice(i,1);sel.delete(c);mark();render()}},"Borrar"));
     m.append(fld("Guía: URL del epg.xml (XMLTV), o del stream .ts para leer su guía integrada","e",i,"https://.../epg.xml"),fld("ID de la guía (tvg-id, opcional)","id",i,""),lv);
     r.append(n,fld("Nombre","n",i,"Mi canal"),fld("Categoría","c",i,"Noticias","cats"),fld("URL del canal (.m3u8 o http://ip:puerto/play/id)","u",i,"https://..."),a,document.createElement("span"),m);
     const mk=cls=>{const d=document.createElement("div");d.className="more "+cls;return d},m2=mk("l"),m3=mk("f"),m4=mk("t"),m5=mk("k"),th=document.createElement("img"),lg=fld("Logo (URL de imagen o ruta como logos/canal.png)","img",i,"https://.../logo.png");
     th.className="thumb";th.alt="";const sh=()=>{th.style.visibility=c.img?"visible":"hidden";if(c.img)th.src=c.img};sh();th.onerror=()=>{th.style.visibility="hidden"};lg.querySelector("input").addEventListener("input",sh);
     const cw=document.createElement("label"),cr=document.createElement("div"),ci=document.createElement("input");
     cw.className="col";cw.append("Color del canal");cr.style.cssText="display:flex;gap:6px";ci.type="color";ci.value=c.color||"#163959";ci.style.opacity=c.color?1:.4;
-    ci.oninput=()=>{c.color=ci.value;ci.style.opacity=1;mark()};
-    cr.append(ci,btn("Quitar",()=>{c.color="";ci.value="#163959";ci.style.opacity=.4;mark()},"Sin color (usa el neutro)"));cw.append(cr);
+    ci.onfocus=snap;ci.oninput=()=>{c.color=ci.value;ci.style.opacity=1;mark()};
+    cr.append(ci,btn("Quitar",()=>{snap();c.color="";ci.value="#163959";ci.style.opacity=.4;mark()},"Sin color (usa el neutro)"));cw.append(cr);
     m2.append(th,lg,cw);m3.append(fld("Público (ej: familiar, adultos, niños)","pub",i,""),fld("Idioma","lang",i,"Español"),fld("País","country",i,""));
     m4.append(tfld("Descripción: de qué trata el canal","desc",i,"Canal de noticias las 24 horas..."));
     const lp=document.createElement("label"),cb2=document.createElement("input");
-    lp.className="live";cb2.type="checkbox";cb2.checked=!!c.loop;cb2.onchange=()=>{c.loop=cb2.checked?1:0;mark()};lp.append(cb2,"Guía repetida cada día (el .xml siempre trae el mismo día)");
+    lp.className="live";cb2.type="checkbox";cb2.checked=!!c.loop;cb2.onchange=()=>{snap();c.loop=cb2.checked?1:0;mark()};lp.append(cb2,"Guía repetida cada día (el .xml siempre trae el mismo día)");
     m5.append(lp,btn("Probar guía",()=>probar(c),"Descarga el epg.xml y comprueba que funcione"));
     r.append(m5,m2,m3,m4);
     box.append(r);
@@ -128,31 +142,40 @@ function render(){
   if(!box.childElementCount)box.innerHTML='<p class="card" style="color:var(--mut);text-align:center">No hay canales. Agrega uno o importa una lista M3U.</p>';
 }
 $("flt").oninput=render;
+const vis=c=>{const q=$("flt").value.trim().toLowerCase();return !q||((c.n||"")+" "+(c.c||"")).toLowerCase().includes(q)};
+$("bsel").onclick=()=>{ch.filter(vis).forEach(c=>sel.add(c));render()};
+$("bno").onclick=()=>{sel.clear();render()};
+$("bset").onclick=()=>{const v=$("bcat").value.trim();if(!v)return msg("Escribe la categoría nueva.",1);snap();const n=sel.size;sel.forEach(c=>{c.c=v});sel.clear();$("bcat").value="";mark();render();msg(n+" canales movidos a «"+v+"» (todavía sin guardar).")};
+$("bdel").onclick=()=>{if(!confirm("¿Borrar "+sel.size+" canales seleccionados?"))return;snap();ch=ch.filter(c=>!sel.has(c));sel.clear();mark();render()};
+$("az").onclick=()=>{snap();ch.sort((a,b)=>(a.c||"").localeCompare(b.c||"","es")||(a.n||"").localeCompare(b.n||"","es"));mark();render();msg("Ordenados por categoría y nombre (todavía sin guardar).")};
+$("undo").onclick=undo;$("redo").onclick=redo;
+addEventListener("keydown",e=>{if(!(e.ctrlKey||e.metaKey)||["INPUT","TEXTAREA"].includes(e.target.tagName)||$("app").hidden)return;const k=e.key.toLowerCase();
+  if(k==="z"&&!e.shiftKey){e.preventDefault();undo()}else if(k==="y"||(k==="z"&&e.shiftKey)){e.preventDefault();redo()}});
 addEventListener("keydown",e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="s"&&!$("app").hidden){e.preventDefault();$("save").click()}});
 $("bk").onclick=()=>{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(ch,null,1)],{type:"application/json"}));a.download="oplus-canales-"+new Date().toISOString().slice(0,10)+".json";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
 $("rs").onchange=async e=>{const f=e.target.files[0];e.target.value="";if(!f)return;
-  try{const j=JSON.parse(await f.text());if(!Array.isArray(j))throw 0;if(!confirm("Esto reemplaza la lista actual ("+ch.length+" canales) por la copia ("+j.length+"). ¿Continuar?"))return;ch=j.map(c=>({...c}));mark();render();msg("Copia cargada (todavía sin guardar).")}
+  try{const j=JSON.parse(await f.text());if(!Array.isArray(j))throw 0;if(!confirm("Esto reemplaza la lista actual ("+ch.length+" canales) por la copia ("+j.length+"). ¿Continuar?"))return;snap();sel.clear();ch=j.map(c=>({...c}));mark();render();msg("Copia cargada (todavía sin guardar).")}
   catch{msg("El archivo no es una copia válida.",1)}};
 let ip=null;
 addEventListener("beforeinstallprompt",e=>{e.preventDefault();ip=e;$("inst").hidden=false});
 addEventListener("appinstalled",()=>{$("inst").hidden=true});
 $("inst").onclick=async()=>{if(!ip)return;ip.prompt();await ip.userChoice;ip=null;$("inst").hidden=true};
 if("serviceWorker"in navigator&&location.protocol.startsWith("http"))navigator.serviceWorker.register("sw.js").catch(()=>{});
-$("add").onclick=()=>{ch.unshift({n:"",c:"Mis canales",u:"",live:1});$("flt").value="";mark();render()};
+$("add").onclick=()=>{snap();ch.unshift({n:"",c:"Mis canales",u:"",live:1});$("flt").value="";mark();render()};
 $("imp").onclick=()=>{
   const out=[];let meta=null;
   for(const raw of $("m3u").value.split(/\r?\n/)){const l=raw.trim();
     if(l.startsWith("#EXTINF")){const g=/group-title="([^"]*)"/.exec(l),d=/tvg-id="([^"]*)"/.exec(l),lg=/tvg-logo="([^"]*)"/.exec(l);meta={id:d&&d[1]||"",img:lg&&lg[1]||"",n:l.slice(l.lastIndexOf(",")+1).trim()||"Canal",c:g&&g[1]||"Mis canales"}}
     else if(/^https?:\/\//i.test(l)){out.push({id:meta?meta.id:"",n:meta?meta.n:"Canal "+(out.length+1),c:meta?meta.c:"Mis canales",u:l,live:1,img:meta?meta.img:""});meta=null}}
   const have=new Set(ch.map(c=>c.u)),add=out.filter(c=>!have.has(c.u));
-  ch=ch.concat(add);$("m3u").value="";mark();render();msg(add.length+" canales agregados (sin guardar todavía).");
+  snap();ch=ch.concat(add);$("m3u").value="";mark();render();msg(add.length+" canales agregados (sin guardar todavía).");
 };
 $("save").onclick=async()=>{
   const bad=ch.findIndex(c=>!(c.n||"").trim()||!/^https?:\/\//i.test((c.u||"").trim()));
   if(bad>=0)return msg("El canal #"+(bad+1)+" necesita nombre y una URL que empiece con http:// o https://.",1);
   const list=ch.map(c=>{const o={n:c.n.trim(),c:(c.c||"Mis canales").trim()||"Mis canales",u:c.u.trim()};if(c.live)o.live=1;if(c.loop)o.loop=1;if((c.id||"").trim())o.id=c.id.trim();if((c.e||"").trim())o.e=c.e.trim();["img","desc","pub","lang","country","color"].forEach(k=>{if((c[k]||"").trim())o[k]=c[k].trim()});return o});
   if(new Blob([JSON.stringify(list)]).size>900000)return msg("La lista es demasiado grande para Firestore (límite 1 MiB). Usa URLs de logo en lugar de imágenes incrustadas y descripciones más cortas.",1);
-  try{await setDoc(ref,{list,updated:Date.now()});ch=list;dirty=false;$("save").textContent="Guardar cambios";msg("Guardado. La página principal ya muestra los cambios.");render()}
+  try{await setDoc(ref,{list,updated:Date.now()});ch=list;sel.clear();dirty=false;$("save").textContent="Guardar cambios";msg("Guardado. La página principal ya muestra los cambios.");render()}
   catch(e){msg("No se pudo guardar ("+e.code+"). Revisa que tu UID esté en las reglas de Firestore.",1)}
 };
 </script></body></html>

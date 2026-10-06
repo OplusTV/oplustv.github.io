@@ -69,6 +69,7 @@ video{width:100%;height:100%;display:block;background:#000}
 .nowbox .t{font-weight:600}.nowbox .m{color:var(--mut);font-size:13px}.nowbox p{margin-top:4px;color:var(--mut);font-size:13px}
 .bar{height:4px;background:var(--line);border-radius:3px;margin-top:5px;overflow:hidden}
 .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--cyan),var(--mag))}
+#toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);background:rgba(13,28,46,.96);border:1px solid var(--line);border-radius:999px;padding:8px 18px;z-index:100;font-size:14px;box-shadow:0 10px 30px rgba(0,0,0,.5);max-width:90vw;text-align:center}
 .hint{font-size:12px;color:var(--mut);margin-top:10px}
 aside{background:rgba(13,28,46,.75);border:1px solid var(--line);border-radius:20px;display:flex;flex-direction:column;min-height:0;overflow:hidden;backdrop-filter:blur(10px)}
 .chips{display:flex;gap:8px;padding:14px;overflow-x:auto;border-bottom:1px solid var(--line);scrollbar-width:none}
@@ -125,7 +126,7 @@ main{display:flex;flex-direction:column;gap:12px;padding:12px 12px calc(24px + e
 .plyr{border-radius:0}
 .info{grid-template-columns:1fr;gap:10px;margin-top:0}
 .info h1{font-size:20px}.clogo{width:46px;height:46px}
-.ctl{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.ctl{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
 .ctl select{grid-column:1/-1;width:100%}
 .ctl .btn{justify-content:center;padding:9px 6px;font-size:14px}
 #fs,.stage>.hint{display:none}
@@ -166,11 +167,12 @@ dialog{width:94vw;padding:18px}
         <button class="btn" id="next" title="Canal siguiente (↓)">Siguiente ›</button>
         <button class="btn" id="fs" title="Pantalla completa (F)">Pantalla completa</button>
         <button class="btn" id="share" title="Copiar enlace a este canal">Compartir</button>
+        <button class="btn" id="pip" title="Mini reproductor (P)" hidden>Mini reproductor</button>
       </div>
       <div class="nowbox" id="nowbox" hidden></div>
       <div class="about" id="about" hidden></div>
     </div>
-    <p class="hint">Atajos: ↑ ↓ cambian de canal · F pantalla completa · G guía · M silencio · / buscar</p>
+    <p class="hint">Atajos: ↑ ↓ cambian de canal · F pantalla completa · G guía · M silencio · / buscar · P mini reproductor · 0-9 número de canal</p>
   </section>
   <aside>
     <div class="chips" id="chips" role="group" aria-label="Categorías"></div>
@@ -178,6 +180,7 @@ dialog{width:94vw;padding:18px}
   </aside>
 </main>
 
+<div id="toast" role="status" hidden></div>
 <dialog id="gdlg">
   <h2>Guía de programación</h2>
   <div class="gtools"><span class="hint" id="gs"></span></div>
@@ -298,6 +301,7 @@ $("prev").onclick=()=>play(cur-1); $("next").onclick=()=>play(cur+1);
 const fs=()=>document.fullscreenElement?document.exitFullscreen():document.querySelector(".screen").requestFullscreen?.();
 $("fs").onclick=fs;
 $("q").oninput=drawList;
+let numBuf="",numT=0;
 document.addEventListener("keydown",e=>{
   if(["INPUT","TEXTAREA","SELECT"].includes(e.target.tagName)||document.querySelector("dialog[open]"))return;
   if(e.key==="ArrowUp"){e.preventDefault();play(cur-1)}
@@ -306,8 +310,25 @@ document.addEventListener("keydown",e=>{
   else if(e.key==="g"||e.key==="G")openGuide();
   else if(e.key==="m"||e.key==="M")v.muted=!v.muted;
   else if(e.key==="/"){e.preventDefault();$("q").focus()}
+  else if(e.key==="p"||e.key==="P")togglePip();
+  else if(/^\d$/.test(e.key)&&!e.ctrlKey&&!e.metaKey&&!e.altKey){
+    numBuf+=e.key;toast("Canal "+numBuf,1300);clearTimeout(numT);
+    numT=setTimeout(()=>{const n=+numBuf;numBuf="";if(n>=1&&n<=all().length){play(n-1)}else toast("No existe el canal "+n)},1300);
+  }
 });
 
+function toast(t,ms=1800){const e=$("toast");e.textContent=t;e.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>{e.hidden=true},ms)}
+// Mini reproductor (Picture-in-Picture)
+const pipOk=document.pictureInPictureEnabled||(v.webkitSupportsPresentationMode&&v.webkitSupportsPresentationMode("picture-in-picture"));
+$("pip").hidden=!pipOk;$("pip").onclick=togglePip;
+async function togglePip(){
+  if(!pipOk)return;
+  try{
+    if(document.pictureInPictureElement)await document.exitPictureInPicture();
+    else if(document.pictureInPictureEnabled)await v.requestPictureInPicture();
+    else v.webkitSetPresentationMode(v.webkitPresentationMode==="picture-in-picture"?"inline":"picture-in-picture");
+  }catch{toast("Aún no hay video para el mini reproductor")}
+}
 // ---- Mejoras de uso: PWA, volumen, pantalla encendida, notificación multimedia, enlaces ----
 let ip=null;
 addEventListener("beforeinstallprompt",e=>{e.preventDefault();ip=e;$("inst").hidden=false});
