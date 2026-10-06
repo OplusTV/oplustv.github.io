@@ -1,0 +1,20 @@
+name: Transmitir En Vivo (RTMP Privado)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  transmitir:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar el repositorio
+        uses: actions/checkout@v4
+
+      - name: Instalar FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Iniciar transmisión a servidor privado
+        env:
+          RTMP_TARGET: ${{ secrets.RTMP_TARGET }}
+        run: |
+          ffmpeg -re -stream_loop -1 -i "Room-in-INSTITUTIONAL.mp4" -c:v copy -c:a aac -f flv "$RTMP_TARGET"
