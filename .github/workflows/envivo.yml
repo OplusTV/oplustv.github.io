@@ -7,14 +7,21 @@ jobs:
   transmitir:
     runs-on: ubuntu-latest
     steps:
+      # 1. Este paso es OBLIGATORIO. Es el que descarga tu video a la máquina virtual.
       - name: Descargar el repositorio
         uses: actions/checkout@v4
 
+      # 2. Instalar el programa de transmisión.
       - name: Instalar FFmpeg
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
+      # 3. Verificar que el archivo existe y enviar la transmisión.
       - name: Iniciar transmisión a servidor privado
         env:
           RTMP_TARGET: ${{ secrets.RTMP_TARGET }}
         run: |
+          echo "Mostrando archivos detectados en la máquina virtual:"
+          ls -la
+          
+          echo "Iniciando transmisión hacia SSH101..."
           ffmpeg -re -stream_loop -1 -i "Room-in-INSTITUTIONAL.mp4" -c:v copy -c:a aac -f flv "$RTMP_TARGET"
