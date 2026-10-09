@@ -69,6 +69,16 @@ video{width:100%;height:100%;display:block;background:#000}
 .nowbox .t{font-weight:600}.nowbox .m{color:var(--mut);font-size:13px}.nowbox p{margin-top:4px;color:var(--mut);font-size:13px}
 .bar{height:4px;background:var(--line);border-radius:3px;margin-top:5px;overflow:hidden}
 .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--cyan),var(--mag))}
+#mant{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;overflow:auto;padding:16px;background:#0c0c0c}
+#mant .bars{position:absolute;inset:0;display:flex;flex-direction:column}
+#mant .b1,#mant .b2{display:flex}#mant .b1{flex:0 0 76%}#mant .b2{flex:1}#mant .bars i{flex:1}
+#mant::after{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(0,0,0,.2) 0 1px,transparent 1px 3px)}
+.mcard{position:relative;z-index:2;width:min(500px,92vw);text-align:center;background:#161616;border:2px solid #fff;outline:7px solid rgba(0,0,0,.45);padding:28px 30px;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+.mlogo{display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:12px}
+.mlogo img{width:64px;height:64px}.mlogo b{font-size:30px;font-weight:700;letter-spacing:1px;color:#27c9c0;text-shadow:0 0 18px rgba(39,201,192,.35)}
+.mst{font:700 20px/1.2 ui-monospace,"Courier New",monospace;letter-spacing:.32em;color:#ff4d4d;margin:6px 0 14px;text-transform:uppercase}
+.mmsg{color:#f1f1f1;font-size:16px;line-height:1.5;white-space:pre-line}
+.mnote{margin-top:16px;color:#8a8a8a;font:13px ui-monospace,"Courier New",monospace;letter-spacing:.08em}
 #toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);background:rgba(13,28,46,.96);border:1px solid var(--line);border-radius:999px;padding:8px 18px;z-index:100;font-size:14px;box-shadow:0 10px 30px rgba(0,0,0,.5);max-width:90vw;text-align:center}
 .hint{font-size:12px;color:var(--mut);margin-top:10px}
 aside{background:rgba(13,28,46,.75);border:1px solid var(--line);border-radius:20px;display:flex;flex-direction:column;min-height:0;overflow:hidden;backdrop-filter:blur(10px)}
@@ -180,6 +190,15 @@ dialog{width:94vw;padding:18px}
   </aside>
 </main>
 
+<div id="mant" role="alert" hidden>
+  <div class="bars"><div class="b1"><i style="background:#c4c4bc"></i><i style="background:#c1b89c"></i><i style="background:#86b230"></i><i style="background:#1fa79c"></i><i style="background:#8672c4"></i><i style="background:#c8545c"></i><i style="background:#0c5f5a"></i></div><div class="b2"><i style="background:#0b4d48"></i><i style="background:#0f0f0f"></i><i style="background:#62528f"></i><i style="background:#0f0f0f"></i><i style="background:#8a8a86"></i><i style="background:#0f0f0f"></i></div></div>
+  <div class="mcard">
+    <div class="mlogo"><img src="favicon-192.png" alt=""><b>O-PLUS TV</b></div>
+    <div class="mst">En mantenimiento</div>
+    <p class="mmsg" id="mantMsg"></p>
+    <p class="mnote">Esta pantalla se quitará sola cuando volvamos</p>
+  </div>
+</div>
 <div id="toast" role="status" hidden></div>
 <dialog id="gdlg">
   <h2>Guía de programación</h2>
@@ -205,13 +224,23 @@ let CHANNELS=[
 ];
 const $=id=>document.getElementById(id), dlog=[];
 // ---- Canales desde Firebase (Firestore: config/channels) ----
-let remoteOk=false;
+let remoteOk=false,maint=false;
+const bypassMaint=/[?&]preview\b/.test(location.search);   // ?preview: el admin ve la página aunque esté en mantenimiento
+function setMaint(d){
+  const on=!!(d&&d.maintenance)&&!bypassMaint;
+  $("mantMsg").textContent=(d&&d.message)||"Estamos mejorando la página. Volvemos muy pronto.";
+  if(on===maint)return;
+  maint=on;$("mant").hidden=!on;document.documentElement.style.overflow=on?"hidden":"";
+  if(on){destroy();try{v.pause()}catch{}}else if(cur>=0)play(cur);
+}
 async function loadRemote(){
   if(!window.FB||!FB.apiKey||FB.apiKey.startsWith("PEGA"))return;
   try{
     const V="https://www.gstatic.com/firebasejs/10.12.2/";
-    const [{initializeApp},{getFirestore,doc,getDoc}]=await Promise.all([import(V+"firebase-app.js"),import(V+"firebase-firestore.js")]);
-    const s=await getDoc(doc(getFirestore(initializeApp(FB)),"config","channels"));
+    const [{initializeApp},{getFirestore,doc,getDoc,onSnapshot}]=await Promise.all([import(V+"firebase-app.js"),import(V+"firebase-firestore.js")]);
+    const db=getFirestore(initializeApp(FB));
+    onSnapshot(doc(db,"config","site"),d=>setMaint(d.exists()?d.data():{}),()=>{});   // en vivo: se activa/quita sin recargar
+    const s=await getDoc(doc(db,"config","channels"));
     remoteOk=true;
     if(s.exists()&&Array.isArray(s.data().list)){CHANNELS=s.data().list;try{localStorage.setItem("op_cache",JSON.stringify(CHANNELS))}catch{}}
     else CHANNELS=[];
@@ -268,7 +297,7 @@ function overlay(show,title,msg){$("ov").hidden=!show;document.querySelector('.s
 function destroy(){if(hls){hls.destroy();hls=null}if(mp){try{mp.destroy()}catch{}mp=null}if(eitCtl){eitCtl.abort();eitCtl=null}v.onerror=null;v.removeAttribute("src");v.load();const q=$("qual");q.length=1;q.value="-1"}
 
 function play(i){
-  const list=all(); if(!list.length)return; cur=(i+list.length)%list.length; const c=list[cur];
+  const list=all(); if(!list.length)return; cur=(i+list.length)%list.length; if(maint)return; const c=list[cur];
   destroy(); $("title").textContent=c.n;chanInfo(c);loadXml(c.e);mediaInfo(c);syncHash(c); $("cat").textContent=c.c; $("live").hidden=!c.live; document.title=c.n+" · O-PLUS TV";
   store.set("op_last",c.u);nowBox(); overlay(true,"Cargando señal"); drawList();
   const fail=m=>overlay(true,"No se pudo reproducir",m||"La señal no responde o el servidor no permite reproducirla desde esta página. Prueba con otro canal.");

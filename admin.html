@@ -20,6 +20,7 @@ input:focus{border-color:var(--cyan);outline:0}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:24px}
 #login{max-width:380px;margin:12vh auto 0}#login h1{font-size:22px;margin-bottom:14px}#login label{display:block;margin:10px 0 4px;color:var(--mut);font-size:13px}#login .btn{width:100%;margin-top:16px}
 a.btn{text-decoration:none;color:inherit;display:inline-block}html{overscroll-behavior:none}
+#mst{padding:2px 12px;border-radius:999px;font-size:12px;background:var(--p2);color:var(--mut)}#mst.on{background:#b3261e;color:#fff}
 .err{color:#ff8a9b}.ok{color:var(--cyan)}
 header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 24px;border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(6,14,23,.92);backdrop-filter:blur(10px);z-index:5}
 header h1{font-size:18px;margin-right:auto}header small{color:var(--mut)}
@@ -45,6 +46,14 @@ details{margin-bottom:14px}summary{cursor:pointer;color:var(--cyan)}textarea{wid
 <div id="app" hidden>
   <header><h1>O-PLUS TV · Canales</h1><small id="who"></small><a class="btn" href="./" target="_blank" rel="noopener">Ver página</a><button class="btn" id="inst" hidden>Instalar app</button><button class="btn" id="out">Salir</button><button class="btn main" id="save">Guardar cambios</button></header>
   <div class="wrap">
+    <div class="card" style="padding:14px 18px;margin-bottom:14px">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <strong>Modo mantenimiento</strong><span id="mst">…</span>
+        <input id="mmsg" placeholder="Mensaje que verán los visitantes" maxlength="300" style="flex:1;min-width:240px">
+        <button class="btn main" id="mbtn">Activar mantenimiento</button>
+        <a class="btn" href="./?preview" target="_blank" rel="noopener" title="Abre la página normal aunque el mantenimiento esté activo">Ver la página sin el aviso</a>
+      </div>
+    </div>
     <div class="tools"><button class="btn" id="add">+ Agregar canal</button><button class="btn" id="undo" disabled title="Ctrl+Z">↶ Deshacer</button><button class="btn" id="redo" disabled title="Ctrl+Y">↷ Rehacer</button><button class="btn" id="bsel">Seleccionar visibles</button><button class="btn" id="az" title="Ordena por categoría y nombre">Ordenar A–Z</button><small id="cnt" style="color:var(--mut);align-self:center"></small><button class="btn" id="bk" title="Descarga todos los canales como archivo .json">Descargar copia</button><label class="btn" for="rs" title="Reemplaza la lista por una copia descargada antes">Restaurar copia</label><input id="rs" type="file" accept=".json,application/json" hidden><input id="flt" type="search" placeholder="Filtrar por nombre o categoría"></div>
     <div class="card" id="bulk" hidden style="padding:12px 16px;margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><strong id="bn"></strong><input id="bcat" list="cats" placeholder="Nueva categoría" style="max-width:220px"><button class="btn" id="bset">Cambiar categoría</button><button class="btn" id="bdel">Borrar</button><button class="btn" id="bno">Quitar selección</button></div>
     <details><summary>Importar lista M3U</summary><textarea id="m3u" placeholder="#EXTM3U&#10;#EXTINF:-1 group-title=&quot;Noticias&quot;,Canal&#10;https://..."></textarea><button class="btn" id="imp">Agregar a la lista</button></details>
@@ -56,7 +65,7 @@ details{margin-bottom:14px}summary{cursor:pointer;color:var(--cyan)}textarea{wid
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {getAuth,signInWithEmailAndPassword,signOut,onAuthStateChanged} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {getFirestore,doc,getDoc,setDoc} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-const $=id=>document.getElementById(id),app=initializeApp(FB),auth=getAuth(app),ref=doc(getFirestore(app),"config","channels");
+const $=id=>document.getElementById(id),app=initializeApp(FB),auth=getAuth(app),db=getFirestore(app),ref=doc(db,"config","channels"),sref=doc(db,"config","site");
 let ch=[],dirty=false,dragC=null,und=[],red=[];const sel=new Set();
 const snap=()=>{const j=JSON.stringify(ch);if(und[und.length-1]!==j){und.push(j);if(und.length>40)und.shift();red=[];upd()}};
 function upd(){$("undo").disabled=!und.length;$("redo").disabled=!red.length;$("bulk").hidden=!sel.size;$("bn").textContent=sel.size+" seleccionados"}
@@ -71,10 +80,25 @@ $("out").onclick=()=>signOut(auth);
 onAuthStateChanged(auth,async u=>{
   $("login").hidden=!!u;$("app").hidden=!u;if(!u)return;$("who").textContent=u.email;
   try{const s=await getDoc(ref);ch=s.exists()?(s.data().list||[]):[]}catch(e){msg("No se pudo leer la lista ("+e.code+").",1)}
+  try{const m=await getDoc(sref);setM(m.exists()?m.data():{})}catch{setM({})}
   try{const d=localStorage.getItem("oplus_draft");
     if(d&&d!==JSON.stringify(ch)){if(confirm("Hay cambios sin guardar de tu última sesión. ¿Quieres recuperarlos?")){ch=JSON.parse(d);mark()}else localStorage.removeItem("oplus_draft")}}catch{}
   render();
 });
+let mOn=false;
+function setM(d){
+  mOn=!!(d&&d.maintenance);
+  $("mst").textContent=mOn?"ACTIVO: los visitantes ven la pantalla de mantenimiento":"Apagado: el sitio funciona normal";
+  $("mst").className=mOn?"on":"";$("mbtn").textContent=mOn?"Desactivar mantenimiento":"Activar mantenimiento";
+  if(d&&d.message)$("mmsg").value=d.message;
+}
+$("mbtn").onclick=async()=>{
+  const on=!mOn;
+  if(on&&!confirm("Se mostrará la pantalla de mantenimiento a todos los visitantes ahora mismo. ¿Continuar?"))return;
+  const d={maintenance:on,message:$("mmsg").value.trim()||"Estamos mejorando la página. Volvemos muy pronto.",updated:Date.now()};
+  try{await setDoc(sref,d);setM(d);msg(on?"Mantenimiento activado: ya lo ven los visitantes.":"Mantenimiento desactivado: el sitio vuelve a funcionar.")}
+  catch(e){msg("No se pudo cambiar el modo ("+e.code+"). ¿Publicaste las reglas nuevas de Firestore?",1)}
+};
 function fld(label,key,i,ph,list){
   const l=document.createElement("label"),x=document.createElement("input");l.append(label);x.value=ch[i][key]||"";x.placeholder=ph||"";if(list)x.setAttribute("list",list);
   x.onfocus=snap;x.oninput=()=>{ch[i][key]=x.value;mark()};l.append(x);return l;
