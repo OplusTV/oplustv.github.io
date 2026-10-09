@@ -63,13 +63,16 @@ function upd(){$("undo").disabled=!und.length;$("redo").disabled=!red.length;$("
 function undo(){const c=JSON.stringify(ch);while(und.length&&und[und.length-1]===c)und.pop();if(!und.length)return upd();red.push(c);ch=JSON.parse(und.pop());sel.clear();mark();render()}
 function redo(){if(!red.length)return;und.push(JSON.stringify(ch));ch=JSON.parse(red.pop());sel.clear();mark();render()}
 const msg=(t,e)=>{$("msg").textContent=t;$("msg").className=e?"err":"ok"};
-const mark=()=>{dirty=true;$("save").textContent="Guardar cambios *"};
+let dT=0;
+const mark=()=>{dirty=true;$("save").textContent="Guardar cambios *";clearTimeout(dT);dT=setTimeout(()=>{try{localStorage.setItem("oplus_draft",JSON.stringify(ch))}catch{}},800)};
 addEventListener("beforeunload",e=>{if(dirty)e.preventDefault()});
 $("login").onsubmit=async e=>{e.preventDefault();$("le").textContent="";try{await signInWithEmailAndPassword(auth,$("em").value,$("pw").value)}catch{$("le").textContent="Correo o contraseña incorrectos."}};
 $("out").onclick=()=>signOut(auth);
 onAuthStateChanged(auth,async u=>{
   $("login").hidden=!!u;$("app").hidden=!u;if(!u)return;$("who").textContent=u.email;
   try{const s=await getDoc(ref);ch=s.exists()?(s.data().list||[]):[]}catch(e){msg("No se pudo leer la lista ("+e.code+").",1)}
+  try{const d=localStorage.getItem("oplus_draft");
+    if(d&&d!==JSON.stringify(ch)){if(confirm("Hay cambios sin guardar de tu última sesión. ¿Quieres recuperarlos?")){ch=JSON.parse(d);mark()}else localStorage.removeItem("oplus_draft")}}catch{}
   render();
 });
 function fld(label,key,i,ph,list){
@@ -175,7 +178,7 @@ $("save").onclick=async()=>{
   if(bad>=0)return msg("El canal #"+(bad+1)+" necesita nombre y una URL que empiece con http:// o https://.",1);
   const list=ch.map(c=>{const o={n:c.n.trim(),c:(c.c||"Mis canales").trim()||"Mis canales",u:c.u.trim()};if(c.live)o.live=1;if(c.loop)o.loop=1;if((c.id||"").trim())o.id=c.id.trim();if((c.e||"").trim())o.e=c.e.trim();["img","desc","pub","lang","country","color"].forEach(k=>{if((c[k]||"").trim())o[k]=c[k].trim()});return o});
   if(new Blob([JSON.stringify(list)]).size>900000)return msg("La lista es demasiado grande para Firestore (límite 1 MiB). Usa URLs de logo en lugar de imágenes incrustadas y descripciones más cortas.",1);
-  try{await setDoc(ref,{list,updated:Date.now()});ch=list;sel.clear();dirty=false;$("save").textContent="Guardar cambios";msg("Guardado. La página principal ya muestra los cambios.");render()}
+  try{await setDoc(ref,{list,updated:Date.now()});ch=list;sel.clear();dirty=false;clearTimeout(dT);try{localStorage.removeItem("oplus_draft")}catch{}$("save").textContent="Guardar cambios";msg("Guardado. La página principal ya muestra los cambios.");render()}
   catch(e){msg("No se pudo guardar ("+e.code+"). Revisa que tu UID esté en las reglas de Firestore.",1)}
 };
 </script></body></html>
