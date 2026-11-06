@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE tv SYSTEM "xmltv.dtd">
+<tv source-info-name="nicaplus" source-info-url="">
+  <channel id="nicaplus">
+    <display-name>Nicaplus</display-name>
+  </channel>
+
+  <programme start="20271231150000 -0600" stop="20271231153000 -0600" channel="tlmas">
+    <title lang="es">El Asombroso Circo Digital</title>
+  </programme>
+  <programme start="20271231153000 -0600" stop="20271231160000 -0600" channel="tlmas">
+    <title lang="es">Among Us</title>
+  </programme>
+  <programme start="20271231160000 -0600" stop="20271231163000 -0600" channel="tlmas">
+    <title lang="es">Isekai Quartet</title>
+  </programme>
+  <programme start="20271231163000 -0600" stop="20271231170000 -0600" channel="tlmas">
+    <title lang="es">Ichigo Mashimiro</title>
+  </programme>
+  <programme start="20271231170000 -0600" stop="20271231173000 -0600" channel="tlmas">
+    <title lang="es">High Score Girl</title>
+  </programme>
+  <programme start="20271231173000 -0600" stop="20271231180000 -0600" channel="tlmas">
+    <title lang="es">Azumanga Daioh</title>
+  </programme>
+  <programme start="20271231180000 -0600" stop="20271231183000 -0600" channel="tlmas">
+    <title lang="es">Zombieland Saga</title>
+  </programme>
+  <programme start="20271231183000 -0600" stop="20271231190000 -0600" channel="tlmas">
+    <title lang="es">Kill me Baby</title>
+  </programme>
+  <programme start="20271231190000 -0600" stop="20271231193000 -0600" channel="tlmas">
+    <title lang="es">Tamako Market</title>
+  </programme>
+  <programme start="20271231193000 -0600" stop="20271231200000 -0600" channel="tlmas">
+    <title lang="es">Adachi to Shimamura</title>
+  </programme>
+  <programme start="20271231200000 -0600" stop="20271231203000 -0600" channel="tlmas">
+    <title lang="es">Magical Doremi</title>
+  </programme>
+  <programme start="20271231203000 -0600" stop="20271231210000 -0600" channel="tlmas">
+    <title lang="es">K-ON!</title>
+  </programme>
+  <programme start="20271231210000 -0600" stop="20271231213000 -0600" channel="tlmas">
+    <title lang="es">Nichijou</title>
+  </programme>
+  <programme start="20271231213000 -0600" stop="20271231220000 -0600" channel="tlmas">
+    <title lang="es">Onimai</title>
+  </programme>
+
+</tv>
